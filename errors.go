@@ -56,7 +56,7 @@ func (err *Error) StackTrace() slog.Attr {
 	var as []any
 	for level, frame := range frames {
 		fmtFrame := fmt.Sprintf(
-			"%s:%d(%s)",
+			"%s:%d (%s)",
 			frame.File,
 			frame.LineNumber,
 			frame.Name,

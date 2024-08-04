@@ -55,25 +55,15 @@ func (err *Error) StackTrace() slog.Attr {
 	frames := err.wrapper.StackFrames()
 	var as []any
 	for level, frame := range frames {
-		buffer := bytes.NewBufferString("")
-		buffer.WriteString(
-			fmt.Sprintf(
-				"%s.%s\n",
-				frame.Package,
-				frame.Name,
-			),
+		fmtFrame := fmt.Sprintf(
+			"%s:%d(%s)",
+			frame.File,
+			frame.LineNumber,
+			frame.Name,
 		)
-
-		buffer.WriteString(
-			fmt.Sprintf(
-				"·    %s:%d\n",
-				frame.File,
-				frame.LineNumber,
-			),
-		)
-		as = append(as, slog.String(fmt.Sprintf("frame_%v", level), buffer.String()))
+		as = append(as, slog.String(fmt.Sprintf("frame_%v", level), fmtFrame))
 	}
-	return slog.Group("stack_trace", as...)
+	return slog.Group("origin", as...)
 }
 
 // Error returns the text of this `Error`

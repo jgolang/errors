@@ -51,9 +51,9 @@ func (err *Error) StackTraceStr() string {
 	return buffer.String()
 }
 
-func (err *Error) StackTrace() slog.Attr {
+func (err *Error) StackTrace() slog.Value {
 	frames := err.wrapper.StackFrames()
-	var as []any
+	var as []slog.Attr
 	for level, frame := range frames {
 		fmtFrame := fmt.Sprintf(
 			"%s:%d (%s)",
@@ -63,7 +63,7 @@ func (err *Error) StackTrace() slog.Attr {
 		)
 		as = append(as, slog.String(fmt.Sprintf("frame_%v", level), fmtFrame))
 	}
-	return slog.Group("origin", as...)
+	return slog.GroupValue(as...)
 }
 
 // Error returns the text of this `Error`

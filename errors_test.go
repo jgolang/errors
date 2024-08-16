@@ -45,7 +45,7 @@ func TestNewError(t *testing.T) {
 	arg := "username"
 
 	// Create a new error using the NewError function
-	err := NewError(code, format, arg)
+	err := NewC(code, format, arg)
 
 	// Assertions
 	if err == nil {

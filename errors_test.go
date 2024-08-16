@@ -46,6 +46,8 @@ func TestNewError(t *testing.T) {
 	format := "Validation failed for field: %s"
 	arg := "username"
 
+	Wrap(nil)
+
 	// Create a new error using the NewError function
 	err := NewC(code, format, arg)
 

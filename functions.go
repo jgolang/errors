@@ -9,6 +9,10 @@ import (
 
 // With Creates a new error with a new error message from the `message` supplied as a formatted string plus the `args` parameter. The `err` argument is stored as a reference and a stack trace is computed when this function is called
 func With(err error, message string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+
 	if wrapped, ok := err.(*Error); ok {
 		return &Error{
 			Wrapper: wrapped.Wrapper,
@@ -28,6 +32,10 @@ func With(err error, message string, args ...interface{}) error {
 
 // WithC Creates a new error with a new error message from the `message` supplied as a formatted string plus the `args` parameter. The `err` argument is stored as a reference and a stack trace is computed when this function is called
 func WithC(err error, code codes.Coder, message string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+
 	if wrapped, ok := err.(*Error); ok {
 		return &Error{
 			Wrapper: wrapped.Wrapper,
@@ -47,6 +55,10 @@ func WithC(err error, code codes.Coder, message string, args ...interface{}) err
 
 // Wrap Creates a new error storing the `err` argument as a reference and a stack trace is computed when this function is called
 func Wrap(err error) error {
+	if err == nil {
+		return nil
+	}
+
 	if err, ok := err.(*Error); ok {
 		return err
 	}
@@ -60,6 +72,10 @@ func Wrap(err error) error {
 
 // Wrap Creates a new error storing the `err` argument as a reference and a stack trace is computed when this function is called
 func WrapC(err error, code codes.Coder) error {
+	if err == nil {
+		return nil
+	}
+
 	if err, ok := err.(*Error); ok {
 		return &Error{
 			Wrapper: err.Wrapper,

@@ -10,7 +10,7 @@ import (
 
 // Error is a wrapper of an existing error containing the error stack trace at the moment of creation
 type Error struct {
-	wrapper *errors.Error
+	Wrapper *errors.Error
 	Message string // A non-technical, user-friendly message describing the error.
 	cause   error
 	Code    Code // A custom error code to categorize or identify the error.
@@ -18,15 +18,15 @@ type Error struct {
 
 // StackTrace Returns an string containing the stack trace computed at the creation moment of this `Error`.
 func (err *Error) StackTraceStr() string {
-	frames := err.wrapper.StackFrames()
+	frames := err.Wrapper.StackFrames()
 	buffer := bytes.NewBufferString("")
 
 	if err.Message != "" {
 		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.Message))
 
-		buffer.WriteString(fmt.Sprintf("·    Cause: %s\n\n", err.wrapper.Error()))
-	} else if err.wrapper != nil {
-		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.wrapper.Error()))
+		buffer.WriteString(fmt.Sprintf("·    Cause: %s\n\n", err.Wrapper.Error()))
+	} else if err.Wrapper != nil {
+		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.Wrapper.Error()))
 	} else {
 		buffer.WriteString("\n\n")
 	}
@@ -53,7 +53,7 @@ func (err *Error) StackTraceStr() string {
 }
 
 func (err *Error) StackTrace() slog.Value {
-	frames := err.wrapper.StackFrames()
+	frames := err.Wrapper.StackFrames()
 	var as []slog.Attr
 	for level, frame := range frames {
 		fmtFrame := fmt.Sprintf(
@@ -85,11 +85,11 @@ func (err *Error) Error() string {
 	}
 
 	// Always include the original wrapped error message
-	if err.wrapper != nil {
+	if err.Wrapper != nil {
 		if result != "" {
 			result += ": "
 		}
-		result += err.wrapper.Error()
+		result += err.Wrapper.Error()
 	}
 
 	return result

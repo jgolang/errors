@@ -11,15 +11,17 @@ func With(err error, message string, args ...interface{}) error {
 	if wrapped, ok := err.(*Error); ok {
 		return &Error{
 			wrapper: wrapped.wrapper,
-			message: fmt.Sprintf(message, args...),
+			Message: fmt.Sprintf(message, args...),
 			cause:   err,
+			Code:    ErrGenUnknown,
 		}
 	}
 
 	return &Error{
 		wrapper: errors.Wrap(err, 1),
-		message: fmt.Sprintf(message, args...),
+		Message: fmt.Sprintf(message, args...),
 		cause:   err,
+		Code:    ErrGenUnknown,
 	}
 }
 
@@ -32,6 +34,7 @@ func Wrap(err error) error {
 	return &Error{
 		wrapper: errors.Wrap(err, 1),
 		cause:   err,
+		Code:    ErrGenUnknown,
 	}
 }
 
@@ -39,5 +42,14 @@ func Wrap(err error) error {
 func New(format string, args ...interface{}) error {
 	return &Error{
 		wrapper: errors.Wrap(fmt.Errorf(format, args...), 1),
+		Code:    ErrGenUnknown,
+	}
+}
+
+// NewError creates a new Error instance with the provided code, message, and wrapper error.
+func NewError(code Code, format string, args ...interface{}) error {
+	return &Error{
+		wrapper: errors.Wrap(fmt.Errorf(format, args...), 1),
+		Code:    code,
 	}
 }

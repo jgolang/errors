@@ -11,8 +11,9 @@ import (
 // Error is a wrapper of an existing error containing the error stack trace at the moment of creation
 type Error struct {
 	wrapper *errors.Error
-	message string
+	Message string // A non-technical, user-friendly message describing the error.
 	cause   error
+	Code    Code // A custom error code to categorize or identify the error.
 }
 
 // StackTrace Returns an string containing the stack trace computed at the creation moment of this `Error`.
@@ -20,8 +21,8 @@ func (err *Error) StackTraceStr() string {
 	frames := err.wrapper.StackFrames()
 	buffer := bytes.NewBufferString("")
 
-	if err.message != "" {
-		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.message))
+	if err.Message != "" {
+		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.Message))
 
 		buffer.WriteString(fmt.Sprintf("·    Cause: %s\n\n", err.wrapper.Error()))
 	} else if err.wrapper != nil {
@@ -68,13 +69,28 @@ func (err *Error) StackTrace() slog.Value {
 
 // Error returns the text of this `Error`
 func (err *Error) Error() string {
-	if err.message != "" {
-		return fmt.Sprintf(err.message)
+	var result string
+
+	// Include the custom error code if it exists
+	if err.Code != nil {
+		result += fmt.Sprintf("[%s]", err.Code.Str())
+		if err.Code.Msg() != "" {
+			result += fmt.Sprintf("(%s)", err.Code.Msg())
+		}
 	}
 
+	// Include the custom message if it exists
+	if err.Message != "" {
+		result += fmt.Sprintf(" %s", err.Message)
+	}
+
+	// Always include the original wrapped error message
 	if err.wrapper != nil {
-		return err.wrapper.Error()
+		if result != "" {
+			result += ": "
+		}
+		result += err.wrapper.Error()
 	}
 
-	return ""
+	return result
 }

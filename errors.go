@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/go-errors/errors"
+	"github.com/jgolang/errors/codes"
 )
 
 // Error is a wrapper of an existing error containing the error stack trace at the moment of creation
@@ -13,7 +14,7 @@ type Error struct {
 	Wrapper *errors.Error
 	Message string // A non-technical, user-friendly message describing the error.
 	cause   error
-	Code    Coder // A custom error code to categorize or identify the error.
+	Code    codes.Coder // A custom error code to categorize or identify the error.
 }
 
 // StackTrace Returns an string containing the stack trace computed at the creation moment of this `Error`.

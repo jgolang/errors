@@ -3,6 +3,8 @@ package errors
 import (
 	"fmt"
 	"testing"
+
+	"github.com/jgolang/errors/codes"
 )
 
 func TestNew(t *testing.T) {
@@ -27,12 +29,12 @@ func TestNew(t *testing.T) {
 	}
 
 	// Check if the code is set to ErrGenUnknown
-	if e.Code != ErrGenUnknown {
+	if e.Code != codes.Unknown {
 		t.Errorf("Expected error code to be ErrGenUnknown, got %v", e.Code)
 	}
 
 	// Check if the error message is formatted correctly
-	expectedMsg := fmt.Sprintf("[%s](%s): %s", ErrGenUnknown.Str(), ErrGenUnknown.Msg(), fmt.Sprintf(format, arg))
+	expectedMsg := fmt.Sprintf("[%s](%s): %s", codes.Unknown.Str(), codes.Unknown.Msg(), fmt.Sprintf(format, arg))
 	if e.Error() != expectedMsg {
 		t.Errorf("Expected error message to be '%s', got '%s'", expectedMsg, e.Error())
 	}
@@ -40,7 +42,7 @@ func TestNew(t *testing.T) {
 
 func TestNewError(t *testing.T) {
 	// Test case parameters
-	code := ErrAppValidation // Example code, can be replaced with any code
+	code := codes.AppValidation // Example code, can be replaced with any code
 	format := "Validation failed for field: %s"
 	arg := "username"
 

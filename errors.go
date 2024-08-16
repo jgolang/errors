@@ -13,7 +13,7 @@ type Error struct {
 	Wrapper *errors.Error
 	Message string // A non-technical, user-friendly message describing the error.
 	cause   error
-	Code    Code // A custom error code to categorize or identify the error.
+	Code    Coder // A custom error code to categorize or identify the error.
 }
 
 // StackTrace Returns an string containing the stack trace computed at the creation moment of this `Error`.

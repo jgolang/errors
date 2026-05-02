@@ -89,6 +89,16 @@ func TestWrapSupportsErrorsIs(t *testing.T) {
 	}
 }
 
+func TestIsMatchesWrappedSentinel(t *testing.T) {
+	sentinel := stderrors.New("sentinel")
+
+	err := Wrap(sentinel)
+
+	if !Is(err, sentinel) {
+		t.Fatalf("Expected Is to match wrapped sentinel")
+	}
+}
+
 func TestWrapSupportsErrorsAs(t *testing.T) {
 	err := WithC(stderrors.New("sentinel"), codes.AppValidation, "friendly message")
 

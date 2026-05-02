@@ -9,7 +9,7 @@ import (
 	"github.com/jgolang/errors/codes"
 )
 
-// Error is a wrapper of an existing error containing the error stack trace at the moment of creation
+// Error wraps another error with a stack trace, optional friendly message, and optional code.
 type Error struct {
 	Wrapper *errors.Error
 	Message string // A non-technical, user-friendly message describing the error.
@@ -17,19 +17,22 @@ type Error struct {
 	Code    codes.Coder // A custom error code to categorize or identify the error.
 }
 
-// StackTrace Returns an string containing the stack trace computed at the creation moment of this `Error`.
+// StackTraceStr returns the stack trace captured when this Error was created.
 func (err *Error) StackTraceStr() string {
-	frames := err.Wrapper.StackFrames()
 	buffer := bytes.NewBufferString("")
+
+	if err == nil || err.Wrapper == nil {
+		return "\n\n"
+	}
+
+	frames := err.Wrapper.StackFrames()
 
 	if err.Message != "" {
 		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.Message))
 
 		buffer.WriteString(fmt.Sprintf("·    Cause: %s\n\n", err.Wrapper.Error()))
-	} else if err.Wrapper != nil {
-		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.Wrapper.Error()))
 	} else {
-		buffer.WriteString("\n\n")
+		buffer.WriteString(fmt.Sprintf("\n\n%s\n\n", err.Wrapper.Error()))
 	}
 
 	for _, frame := range frames {
@@ -53,7 +56,12 @@ func (err *Error) StackTraceStr() string {
 	return buffer.String()
 }
 
+// StackTrace returns the stack trace as a slog group value.
 func (err *Error) StackTrace() slog.Value {
+	if err == nil || err.Wrapper == nil {
+		return slog.GroupValue()
+	}
+
 	frames := err.Wrapper.StackFrames()
 	var as []slog.Attr
 	for level, frame := range frames {
@@ -68,8 +76,21 @@ func (err *Error) StackTrace() slog.Value {
 	return slog.GroupValue(as...)
 }
 
-// Error returns the text of this `Error`
+// Unwrap returns the error that caused this Error.
+func (err *Error) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+
+	return err.cause
+}
+
+// Error returns the text of this Error.
 func (err *Error) Error() string {
+	if err == nil {
+		return ""
+	}
+
 	var result string
 
 	// Include the custom error code if it exists

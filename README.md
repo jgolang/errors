@@ -47,13 +47,21 @@ err = jerrors.WrapC(err, codes.SrvInternal)
 Errors created by this package implement `Unwrap`, so standard Go helpers work:
 
 ```go
-if errors.Is(err, ErrUserNotFound) {
+if stderrors.Is(err, ErrUserNotFound) {
 	// handle known cause
 }
 
 var wrapped *jerrors.Error
-if errors.As(err, &wrapped) {
+if stderrors.As(err, &wrapped) {
 	slog.Info("request failed", "code", wrapped.Code.Str(), "stack", wrapped.StackTrace())
+}
+```
+
+If this package is imported as `errors`, use its `Is` helper directly:
+
+```go
+if errors.Is(err, ErrUserNotFound) {
+	// handle known cause
 }
 ```
 

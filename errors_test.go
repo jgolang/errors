@@ -245,3 +245,19 @@ func TestCodeOfSupportsCustomCodes(t *testing.T) {
 		t.Fatalf("Expected custom code %v, got %v", custom, got)
 	}
 }
+
+func TestPublicMessageReturnsCodeMessage(t *testing.T) {
+	err := WithC(stderrors.New("database password leaked in cause"), codes.SrvInternal, "internal context")
+
+	if got := PublicMessage(err); got != codes.SrvInternal.Msg() {
+		t.Fatalf("Expected public message %q, got %q", codes.SrvInternal.Msg(), got)
+	}
+}
+
+func TestPublicMessageFallsBackToUnknown(t *testing.T) {
+	err := stderrors.New("internal detail")
+
+	if got := PublicMessage(err); got != codes.Unknown.Msg() {
+		t.Fatalf("Expected fallback message %q, got %q", codes.Unknown.Msg(), got)
+	}
+}

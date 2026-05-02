@@ -15,3 +15,13 @@ func CodeOf(err error) codes.Coder {
 
 	return nil
 }
+
+// PublicMessage returns a user-safe message for err without exposing technical details.
+func PublicMessage(err error) string {
+	code := CodeOf(err)
+	if code == nil || code.Msg() == "" {
+		return codes.Unknown.Msg()
+	}
+
+	return code.Msg()
+}

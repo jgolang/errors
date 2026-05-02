@@ -65,6 +65,14 @@ if code := jerrors.CodeOf(err); code != nil {
 }
 ```
 
+## Public Messages
+
+Use `PublicMessage` when returning an error to users or API clients. It returns the code message and avoids exposing internal causes, stack traces, file paths, SQL, credentials, or other implementation details.
+
+```go
+http.Error(w, jerrors.PublicMessage(err), http.StatusInternalServerError)
+```
+
 ## Custom Codes
 
 Built-in codes live in the `codes` package:
@@ -84,7 +92,7 @@ The built-in codes are package variables because Go cannot define const struct v
 
 ## Stack Traces
 
-`StackTraceStr` returns a text stack trace. `StackTrace` returns a `slog.Value` group that can be attached to structured logs.
+`StackTraceStr` returns a text stack trace. `StackTrace` returns a `slog.Value` group that can be attached to structured logs. Stack traces can contain source paths and function names, so keep them in internal logs only.
 
 ```go
 slog.Error("operation failed", "error", err, "stack", err.(*jerrors.Error).StackTrace())

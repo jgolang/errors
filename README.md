@@ -1,6 +1,8 @@
 # errors
 
-Small Go error helper for wrapping errors with stack traces, friendly messages, and application codes.
+Application error convention for Go services.
+
+This package keeps Go's standard error chaining semantics while adding stable error codes, user-safe public messages, and stack traces for internal logs. Use it when you want errors to carry both machine-readable context for the application and safe messages for users or API clients.
 
 ## Install
 

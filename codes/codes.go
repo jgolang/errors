@@ -1,70 +1,76 @@
 package codes
 
-// Code interface defines methods for retrieving error Code and message.
+// Coder exposes a stable code string and a user-facing message.
 type Coder interface {
 	Str() string
 	Msg() string
 }
 
-// Code is a concrete implementation of the Code interface.
+// Code is the default Coder implementation.
 type Code struct {
-	Code    string
-	Message string
+	code    string
+	message string
 }
 
-// Code returns the Code as a string.
+// New creates a Code with the supplied stable code and user-facing message.
+func New(code, message string) Code {
+	return Code{code: code, message: message}
+}
+
+// Str returns the Code as a string.
 func (c Code) Str() string {
-	return c.Code
+	return c.code
 }
 
 // Msg returns the message associated with the Code.
 func (c Code) Msg() string {
-	return c.Message
+	return c.message
 }
 
-// Define error Codes in the format A000
+// Built-in codes are variables because Go cannot define const struct values.
+// Treat them as read-only package values; use New to create custom codes.
 var (
 	// General Code Errors
-	Unknown   = Code{Code: "0001", Message: "Something went wrong. Please try again later."}
-	Logic     = Code{Code: "0002", Message: "Logic error occurred."}
-	Unhandled = Code{Code: "0003", Message: "Unexpected issue. Please contact support."}
+	Unknown   = New("0001", "Something went wrong. Please try again later.")
+	Logic     = New("0002", "Logic error occurred.")
+	Unhandled = New("0003", "Unexpected issue. Please contact support.")
 
 	// Database errors
-	ConnFailed = Code{Code: "d001", Message: "Database connection failed."}
-	DBQuery    = Code{Code: "d002", Message: "Database query error."}
+	ConnFailed = New("d001", "Database connection failed.")
+	DBQuery    = New("d002", "Database query error.")
 
 	// Network errors
-	NetTimeout     = Code{Code: "n001", Message: "Network timeout."}
-	NetUnavailable = Code{Code: "n002", Message: "Network unavailable."}
+	NetTimeout     = New("n001", "Network timeout.")
+	NetUnavailable = New("n002", "Network unavailable.")
 
 	// Server errors
-	SrvInternal    = Code{Code: "s001", Message: "Internal server error."}
-	SrvUnavailable = Code{Code: "s002", Message: "Server unavailable."}
+	SrvInternal    = New("s001", "Internal server error.")
+	SrvUnavailable = New("s002", "Server unavailable.")
 
 	// Application Code errors
-	AppValidation = Code{Code: "a001", Message: "Validation error."}
-	AppProcessing = Code{Code: "a002", Message: "Processing error."}
+	AppValidation = New("a001", "Validation error.")
+	AppProcessing = New("a002", "Processing error.")
 
 	// Unexpected errors
-	Unexpected = Code{Code: "u001", Message: "Unexpected error. Please contact support."}
+	Unexpected = New("u001", "Unexpected error. Please contact support.")
 
 	// Authentication errors
-	AuthFailed       = Code{Code: "a003", Message: "Authentication failed."}
-	AuthTokenExpired = Code{Code: "a004", Message: "Token expired."}
+	AuthFailed       = New("a003", "Authentication failed.")
+	AuthTokenExpired = New("a004", "Token expired.")
 
 	// Authorization errors
-	AuthForbidden = Code{Code: "f001", Message: "Access forbidden."}
-	Unauthorized  = Code{Code: "f002", Message: "Unauthorized access."}
+	AuthForbidden = New("f001", "Access forbidden.")
+	Unauthorized  = New("f002", "Unauthorized access.")
 
 	// Validation errors
-	ValRequired = Code{Code: "b001", Message: "Field missing."}
-	ValFormat   = Code{Code: "b002", Message: "Invalid format."}
+	ValRequired = New("b001", "Field missing.")
+	ValFormat   = New("b002", "Invalid format.")
 
 	// Configuration errors
-	CfgInvalid = Code{Code: "c001", Message: "Invalid configuration."}
-	CfgMissing = Code{Code: "c002", Message: "Configuration missing."}
+	CfgInvalid = New("c001", "Invalid configuration.")
+	CfgMissing = New("c002", "Configuration missing.")
 
 	// Integration errors
-	ServiceDown = Code{Code: "e001", Message: "Service down."}
-	IntTimeout  = Code{Code: "e002", Message: "Integration timeout."}
+	ServiceDown = New("e001", "Service down.")
+	IntTimeout  = New("e002", "Integration timeout.")
 )

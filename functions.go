@@ -8,23 +8,17 @@ import (
 )
 
 // With wraps err with a formatted friendly message and captures a new stack trace.
+// It keeps the code found anywhere in err's chain, or uses codes.Unknown.
 func With(err error, message string, args ...interface{}) error {
 	if err == nil {
 		return nil
-	}
-
-	var code codes.Coder = codes.Unknown
-	if wrapped, ok := err.(*Error); ok {
-		if wrapped.Code != nil {
-			code = wrapped.Code
-		}
 	}
 
 	return &Error{
 		Wrapper: errors.Wrap(err, 1),
 		Message: fmt.Sprintf(message, args...),
 		cause:   err,
-		Code:    code,
+		Code:    codeOrUnknown(err),
 	}
 }
 
@@ -42,7 +36,9 @@ func WithC(err error, code codes.Coder, message string, args ...interface{}) err
 	}
 }
 
-// Wrap wraps err with a default code and captures a stack trace.
+// Wrap wraps err and captures a stack trace. It keeps the code found anywhere
+// in err's chain, or uses codes.Unknown. A top-level *Error is returned
+// unchanged; one behind another wrapper, such as fmt.Errorf, is wrapped.
 func Wrap(err error) error {
 	if err == nil {
 		return nil
@@ -55,7 +51,7 @@ func Wrap(err error) error {
 	return &Error{
 		Wrapper: errors.Wrap(err, 1),
 		cause:   err,
-		Code:    codes.Unknown,
+		Code:    codeOrUnknown(err),
 	}
 }
 

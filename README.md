@@ -30,7 +30,7 @@ var ErrUserNotFound = stderrors.New("user not found")
 err := jerrors.WithC(ErrUserNotFound, codes.AppValidation, "cannot load user %s", userID)
 ```
 
-Use `With` when you want to add context and keep the existing code if the error was already created by this library:
+Use `With` when you want to add context and keep the existing code. `With` and `Wrap` find a code anywhere in the chain, including behind `fmt.Errorf("...: %w", err)`; without one they use `codes.Unknown`:
 
 ```go
 err = jerrors.With(err, "request %s failed", requestID)
@@ -67,7 +67,7 @@ if errors.Is(err, ErrUserNotFound) {
 
 ## Extract Codes
 
-Use `CodeOf` to read the first code from an error chain without a type assertion:
+Use `CodeOf` to read the first non-nil code from an error chain without a type assertion. It looks behind other wrappers such as `fmt.Errorf` and skips errors whose code is nil:
 
 ```go
 if code := jerrors.CodeOf(err); code != nil {

@@ -22,7 +22,7 @@ The error string includes the code, code message, and original error message:
 [a001](Validation error.): invalid field "email"
 ```
 
-Text that repeats the code message is printed once: `NewC(codes.New("PLN-111", "task not found"), "task not found")` reads `[PLN-111](task not found)`.
+Text that repeats the code message is printed once: `NewC(codes.New("PLN-111", "task not found"), "task not found")` reads `[PLN-111](task not found)`. A wrapped error with the same code does not repeat its prefix either: `With(err, "loading board")` on the error above reads `[PLN-111](task not found) loading board`. This applies when `With`, `WithC` or `WrapC` wraps the coded error directly; behind another wrapper such as `fmt.Errorf` the inner text is printed as it is.
 
 ## Wrap Errors
 

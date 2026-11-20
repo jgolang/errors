@@ -502,7 +502,46 @@ func TestErrorPrintsCodeTextOnce(t *testing.T) {
 		{"text differing in case prints twice", NewC(notFound, "Task not found"), "[PLN-111](task not found): Task not found"},
 		{"code without message keeps the separator", NewC(codes.New("X", ""), ""), "[X]: "},
 		{"nil code keeps the message", WithC(stderrors.New("io failure"), nil, "loading board"), " loading board: io failure"},
-		{"With adds context", With(NewC(notFound, "task not found"), "loading board"), "[PLN-111](task not found) loading board: [PLN-111](task not found)"},
+		{"With adds context", With(NewC(notFound, "task not found"), "loading board"), "[PLN-111](task not found) loading board"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.err.Error(); got != tt.want {
+				t.Fatalf("Expected %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestErrorPrintsChainCodePrefixOnce(t *testing.T) {
+	notFound := codes.New("PLN-111", "task not found")
+	conflict := codes.New("PLN-200", "task is locked")
+
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"With over the code text", With(NewC(notFound, "task not found"), "loading board"), "[PLN-111](task not found) loading board"},
+		{"With over a detail", With(NewC(notFound, "task 42 is missing"), "loading board"), "[PLN-111](task not found) loading board: task 42 is missing"},
+		{"two Withs", With(With(NewC(notFound, "task 42 is missing"), "loading board"), "handler"), "[PLN-111](task not found) handler: loading board: task 42 is missing"},
+		{"Wrap behind fmt.Errorf keeps the inner text", Wrap(fmt.Errorf("loading: %w", NewC(notFound, "task 42 is missing"))), "[PLN-111](task not found): loading: [PLN-111](task not found): task 42 is missing"},
+		{"different codes keep both", WithC(NewC(notFound, "task 42 is missing"), conflict, "saving"), "[PLN-200](task is locked) saving: [PLN-111](task not found): task 42 is missing"},
+		{"same code under a different layer is kept", WithC(WithC(NewC(notFound, "task 42 is missing"), conflict, "ctx"), notFound, "saving"), "[PLN-111](task not found) saving: [PLN-200](task is locked) ctx: [PLN-111](task not found): task 42 is missing"},
+		{"empty code message deduped", With(NewC(codes.New("PLN-111", ""), "detail"), "ctx"), "[PLN-111] ctx: detail"},
+		{"WrapC over NewC with the same code", WrapC(NewC(notFound, "task 42 is missing"), notFound), "[PLN-111](task not found): task 42 is missing"},
+		{"WrapC over a With chain", WrapC(With(NewC(notFound, "task 42 is missing"), "ctx"), notFound), "[PLN-111](task not found) ctx: task 42 is missing"},
+		{"WrapC of a Define sentinel with its own code", WrapC(Define(notFound, "task 42 is missing"), notFound), "[PLN-111](task not found) task 42 is missing: task 42 is missing"},
+		{"WrapC over a traced sentinel", WrapC(Wrap(Define(notFound, "task 42 is missing")), notFound), "[PLN-111](task not found): task 42 is missing"},
+		{"With repeating the inner message", With(With(NewC(notFound, "task 42"), "loading"), "loading"), "[PLN-111](task not found) loading: loading: task 42"},
+		{"inner text with a leading space is kept", With(NewC(notFound, " padded"), "ctx"), "[PLN-111](task not found) ctx:  padded"},
+		{"inner empty detail keeps its marker", With(NewC(notFound, ""), "ctx"), "[PLN-111](task not found) ctx: [PLN-111](task not found): "},
+		{"nil code without message", WrapC(stderrors.New("plain"), nil), "plain"},
+		{"nil code chain", With(WrapC(stderrors.New("plain"), nil), "context"), "[0001](Something went wrong. Please try again later.) context: plain"},
+		{"empty wrapped text keeps the separator", WithC(stderrors.New(""), notFound, "ctx"), "[PLN-111](task not found) ctx: "},
+		{"different message for the same code string", WithC(NewC(notFound, "detail"), codes.New("PLN-111", ""), "ctx"), "[PLN-111] ctx: [PLN-111](task not found): detail"},
+		{"Unknown chain", With(New("io failure"), "ctx"), "[0001](Something went wrong. Please try again later.) ctx: io failure"},
 	}
 
 	for _, tt := range tests {

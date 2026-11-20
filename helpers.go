@@ -25,6 +25,17 @@ func CodeOf(err error) codes.Coder {
 	return nil
 }
 
+// KindOf returns the kind declared by CodeOf(err), or an empty Kind when that
+// code declares none or err has no code. Reading the kind from the same code
+// as CodeOf keeps a status derived from it consistent with the reported code.
+func KindOf(err error) codes.Kind {
+	if kinded, ok := CodeOf(err).(codes.Kinded); ok {
+		return kinded.Kind()
+	}
+
+	return ""
+}
+
 // codeOrUnknown returns the code found in err's chain, or codes.Unknown.
 func codeOrUnknown(err error) codes.Coder {
 	if code := CodeOf(err); code != nil {

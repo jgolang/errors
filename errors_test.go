@@ -448,3 +448,39 @@ func TestWrapReturnsStackedErrorUnchanged(t *testing.T) {
 		t.Fatal("Expected Wrap to return a stacked *Error unchanged")
 	}
 }
+
+func TestKindOf(t *testing.T) {
+	validation := codes.New("PLN-001", "title is required").WithKind(codes.KindValidation)
+
+	tests := []struct {
+		name string
+		err  error
+		want codes.Kind
+	}{
+		{"coded error", NewC(validation, "bad"), codes.KindValidation},
+		{"behind fmt.Errorf", fmt.Errorf("x: %w", NewC(validation, "bad")), codes.KindValidation},
+		{"code without kind", NewC(codes.New("x001", "m"), "bad"), ""},
+		{"outer code without kind wins", WrapC(NewC(validation, "bad"), codes.New("x001", "m")), ""},
+		{"custom Coder", NewC(plainCoder{}, "bad"), ""},
+		{"custom Kinded Coder", NewC(kindedCoder{}, "bad"), codes.KindConflict},
+		{"plain error", stderrors.New("plain"), ""},
+		{"nil", nil, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := KindOf(tt.err); got != tt.want {
+				t.Fatalf("Expected kind %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
+type plainCoder struct{}
+
+func (plainCoder) Str() string { return "c001" }
+func (plainCoder) Msg() string { return "custom" }
+
+type kindedCoder struct{ plainCoder }
+
+func (kindedCoder) Kind() codes.Kind { return codes.KindConflict }

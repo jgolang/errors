@@ -83,21 +83,19 @@ func (err *Error) Unwrap() error {
 
 // Error returns the text of this Error: the code and its message in brackets,
 // then the friendly message and the wrapped error's text. A friendly message
-// or wrapped text equal to the code's message is printed only once.
+// or wrapped text equal to the code's message is printed only once. When the
+// error directly wraps an *Error with the same code (With, WithC and WrapC over
+// a coded error), the wrapped text leaves out its repeated [code](message)
+// prefix; behind another wrapper such as fmt.Errorf it is printed as is.
 func (err *Error) Error() string {
 	if err == nil {
 		return ""
 	}
 
-	var result, codeText string
-
-	// Include the custom error code if it exists
+	result := err.prefix()
+	codeText := ""
 	if err.Code != nil {
 		codeText = err.Code.Msg()
-		result += "[" + err.Code.Str() + "]"
-		if codeText != "" {
-			result += "(" + codeText + ")"
-		}
 	}
 
 	// Domain errors often reuse the code's text as their message (ERR-05);
@@ -107,7 +105,8 @@ func (err *Error) Error() string {
 	}
 
 	if err.Wrapper != nil {
-		if wrapped := err.Wrapper.Error(); codeText == "" || wrapped != codeText {
+		wrapped, onlyPrefix := err.wrappedText()
+		if !onlyPrefix && (codeText == "" || wrapped != codeText) {
 			if result != "" {
 				result += ": "
 			}
@@ -116,4 +115,48 @@ func (err *Error) Error() string {
 	}
 
 	return result
+}
+
+// prefix returns "[code](message)", "[code]" when the code has no message,
+// or "" for a nil code.
+func (err *Error) prefix() string {
+	if err.Code == nil {
+		return ""
+	}
+	if err.Code.Msg() == "" {
+		return "[" + err.Code.Str() + "]"
+	}
+	return "[" + err.Code.Str() + "](" + err.Code.Msg() + ")"
+}
+
+// wrappedText returns the text of the wrapped error. When it is an *Error with
+// the same code, its own prefix and the separator after it are cut from its
+// text, and onlyPrefix reports that nothing else was left to print.
+func (err *Error) wrappedText() (text string, onlyPrefix bool) {
+	full := err.Wrapper.Error()
+	inner, ok := err.Wrapper.Err.(*Error)
+	if !ok || inner == nil || !sameCode(inner.Code, err.Code) {
+		return full, false
+	}
+
+	rest := strings.TrimPrefix(full, inner.prefix())
+	if rest == "" {
+		return "", true
+	}
+	switch {
+	case strings.HasPrefix(rest, ": "):
+		rest = rest[len(": "):]
+	case strings.HasPrefix(rest, " "):
+		rest = rest[len(" "):]
+	}
+	if rest == "" {
+		// The inner error ended with an empty wrapped text; keep its marker.
+		return full, false
+	}
+	return rest, false
+}
+
+// sameCode reports whether a and b have the same code string and message.
+func sameCode(a, b codes.Coder) bool {
+	return a != nil && b != nil && a.Str() == b.Str() && a.Msg() == b.Msg()
 }

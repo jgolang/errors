@@ -271,3 +271,97 @@ func TestPublicMessageFallsBackToUnknown(t *testing.T) {
 		t.Fatalf("Expected fallback message %q, got %q", codes.Unknown.Msg(), got)
 	}
 }
+
+func TestWrapAndWithKeepCodeBehindFmtErrorf(t *testing.T) {
+	notFound := codes.New("PLN-111", "task not found")
+	sentinel := NewC(notFound, "task not found")
+
+	tests := []struct {
+		name string
+		wrap func(error) error
+	}{
+		{name: "Wrap", wrap: Wrap},
+		{name: "With", wrap: func(err error) error { return With(err, "context") }},
+	}
+
+	for _, tt := range tests {
+		for _, depth := range []int{1, 2} {
+			t.Run(fmt.Sprintf("%s/depth%d", tt.name, depth), func(t *testing.T) {
+				var inner error = sentinel
+				for i := 0; i < depth; i++ {
+					inner = fmt.Errorf("level %d: %w", i, inner)
+				}
+
+				err := tt.wrap(inner)
+
+				if got := CodeOf(err); got != notFound {
+					t.Fatalf("Expected code %v, got %v", notFound, got)
+				}
+				if !stderrors.Is(err, sentinel) {
+					t.Fatal("Expected errors.Is to match the sentinel")
+				}
+			})
+		}
+	}
+}
+
+func TestWrapCAssignsGivenCodeBehindFmtErrorf(t *testing.T) {
+	base := NewC(codes.AppValidation, "invalid value")
+	inner := fmt.Errorf("loading: %w", base)
+
+	err := WrapC(inner, codes.SrvInternal)
+
+	if got := CodeOf(err); got != codes.SrvInternal {
+		t.Fatalf("Expected code %v, got %v", codes.SrvInternal, got)
+	}
+	if !stderrors.Is(err, base) {
+		t.Fatal("Expected errors.Is to match the base error")
+	}
+}
+
+func TestCodeOfSkipsNilCode(t *testing.T) {
+	base := NewC(codes.AppValidation, "invalid value")
+	err := WrapC(fmt.Errorf("context: %w", base), nil)
+
+	if got := CodeOf(err); got != codes.AppValidation {
+		t.Fatalf("Expected code %v, got %v", codes.AppValidation, got)
+	}
+}
+
+func TestCodeOfReturnsNilWhenNoCodeInChain(t *testing.T) {
+	err := WrapC(stderrors.New("plain"), nil)
+
+	if got := CodeOf(err); got != nil {
+		t.Fatalf("Expected nil code, got %v", got)
+	}
+}
+
+func TestWrapAndWithUseUnknownWhenNoCodeInChain(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "Wrap over plain", err: Wrap(fmt.Errorf("x: %w", stderrors.New("plain")))},
+		{name: "With over plain", err: With(fmt.Errorf("x: %w", stderrors.New("plain")), "context")},
+		{name: "With over nil code", err: With(WrapC(stderrors.New("plain"), nil), "context")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CodeOf(tt.err); got != codes.Unknown {
+				t.Fatalf("Expected code %v, got %v", codes.Unknown, got)
+			}
+		})
+	}
+}
+
+func TestWrapAndWithDoNotPanicOnTypedNilError(t *testing.T) {
+	inner := fmt.Errorf("x: %w", (*Error)(nil))
+
+	if got := CodeOf(Wrap(inner)); got != codes.Unknown {
+		t.Fatalf("Expected code %v from Wrap, got %v", codes.Unknown, got)
+	}
+	if got := CodeOf(With(inner, "context")); got != codes.Unknown {
+		t.Fatalf("Expected code %v from With, got %v", codes.Unknown, got)
+	}
+}

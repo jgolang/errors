@@ -120,6 +120,21 @@ err := jerrors.NewC(PaymentDeclined, "processor rejected payment")
 
 The built-in codes are package variables because Go cannot define const struct values. Treat them as read-only values.
 
+## Kinds
+
+A code can declare the kind of failure it reports, so a transport layer can map it to a status without a per-code table. This package does not know about HTTP; `jgolang/api` does the mapping.
+
+```go
+TitleRequired := codes.New("PLN-001", "title is required").WithKind(codes.KindValidation)
+
+err := jerrors.NewC(TitleRequired, "title is empty")
+jerrors.KindOf(fmt.Errorf("saving: %w", err)) // codes.KindValidation
+```
+
+Kinds: `KindValidation`, `KindUnauthorized`, `KindForbidden`, `KindNotFound`, `KindConflict`, `KindInfrastructure`. `KindOf` returns the kind of the code `CodeOf` returns, or an empty kind when that code declares none. A custom `Coder` declares a kind by implementing `codes.Kinded`.
+
+Built-in codes carry kinds: `ValRequired`, `ValFormat` and `AppValidation` are validation; `AuthFailed`, `AuthTokenExpired` and `Unauthorized` are unauthorized; `AuthForbidden` is forbidden; the database, network, server, configuration and integration codes are infrastructure. `Unknown`, `Logic`, `Unhandled`, `Unexpected` and `AppProcessing` have no kind.
+
 ## Stack Traces
 
 `StackTraceStr` returns a text stack trace. `StackTrace` returns a `slog.Value` group that can be attached to structured logs. Stack traces can contain source paths and function names, so keep them in internal logs only.

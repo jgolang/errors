@@ -26,3 +26,14 @@ func ExampleDefine() {
 	// true
 	// PLN-001
 }
+
+func ExampleKindOf() {
+	titleRequired := codes.New("PLN-001", "title is required").WithKind(codes.KindValidation)
+	err := fmt.Errorf("saving task: %w", jerrors.NewC(titleRequired, "title is empty"))
+
+	fmt.Println(jerrors.KindOf(err))
+	fmt.Println(jerrors.KindOf(jerrors.NewC(codes.Unknown, "no kind")) == "")
+	// Output:
+	// validation
+	// true
+}

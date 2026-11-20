@@ -365,3 +365,86 @@ func TestWrapAndWithDoNotPanicOnTypedNilError(t *testing.T) {
 		t.Fatalf("Expected code %v from With, got %v", codes.Unknown, got)
 	}
 }
+
+var errDefinedTitleRequired = Define(codes.New("PLN-001", "title is required"), "title is required")
+
+// returnDefinedSentinel is not inlined so it appears as its own stack frame.
+//
+//go:noinline
+func returnDefinedSentinel() error {
+	return Wrap(errDefinedTitleRequired)
+}
+
+func TestDefineHasNoStack(t *testing.T) {
+	e, ok := errDefinedTitleRequired.(*Error)
+	if !ok {
+		t.Fatalf("Expected *Error, got %T", errDefinedTitleRequired)
+	}
+	if e.Wrapper != nil || len(e.StackTrace().Group()) != 0 {
+		t.Fatal("Expected a sentinel without a stack trace")
+	}
+	if e.Code.Str() != "PLN-001" || e.Message != "title is required" {
+		t.Fatalf("Expected code and message to be kept, got %v %q", e.Code, e.Message)
+	}
+}
+
+func TestWrapOfDefinedSentinel(t *testing.T) {
+	err := returnDefinedSentinel()
+
+	t.Run("stack starts at the caller", func(t *testing.T) {
+		e, ok := err.(*Error)
+		if !ok || e.Wrapper == nil {
+			t.Fatalf("Expected a stacked *Error, got %T", err)
+		}
+		if top := e.Wrapper.StackFrames()[0].Name; top != "returnDefinedSentinel" {
+			t.Fatalf("Expected top frame returnDefinedSentinel, got %q", top)
+		}
+	})
+
+	t.Run("errors.Is matches the sentinel", func(t *testing.T) {
+		if !stderrors.Is(err, errDefinedTitleRequired) {
+			t.Fatal("Expected errors.Is to match the sentinel")
+		}
+	})
+
+	t.Run("errors.As exposes the sentinel code", func(t *testing.T) {
+		var e *Error
+		if !stderrors.As(err, &e) || e.Code.Str() != "PLN-001" {
+			t.Fatalf("Expected errors.As to find code PLN-001, got %v", e)
+		}
+	})
+
+	t.Run("CodeOf returns the sentinel code", func(t *testing.T) {
+		if got := CodeOf(err); got.Str() != "PLN-001" {
+			t.Fatalf("Expected code PLN-001, got %v", got)
+		}
+	})
+
+	t.Run("Error reads like NewC", func(t *testing.T) {
+		if got := err.Error(); got != "[PLN-001](title is required): title is required" {
+			t.Fatalf("Unexpected Error() text %q", got)
+		}
+	})
+
+	t.Run("a second Wrap returns the same error", func(t *testing.T) {
+		if Wrap(err) != err {
+			t.Fatal("Expected Wrap of a traced sentinel to return it unchanged")
+		}
+	})
+}
+
+func TestWrapReturnsHandBuiltStacklessErrorUnchanged(t *testing.T) {
+	handBuilt := &Error{Code: codes.AppValidation, Message: "invalid value"}
+
+	if Wrap(handBuilt) != error(handBuilt) {
+		t.Fatal("Expected Wrap to return a hand-built *Error unchanged")
+	}
+}
+
+func TestWrapReturnsStackedErrorUnchanged(t *testing.T) {
+	stacked := NewC(codes.AppValidation, "invalid value")
+
+	if Wrap(stacked) != stacked {
+		t.Fatal("Expected Wrap to return a stacked *Error unchanged")
+	}
+}

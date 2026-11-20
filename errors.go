@@ -15,6 +15,9 @@ type Error struct {
 	Message string // A non-technical, user-friendly message describing the error.
 	cause   error
 	Code    codes.Coder // A custom error code to categorize or identify the error.
+
+	// defined marks a sentinel built by Define, which Wrap traces at its call site.
+	defined bool
 }
 
 // StackTraceStr returns the stack trace captured when this Error was created.

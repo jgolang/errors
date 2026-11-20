@@ -65,6 +65,26 @@ if errors.Is(err, ErrUserNotFound) {
 }
 ```
 
+## Sentinels
+
+`NewC` captures a stack trace when it runs, so a package-level variable built with it points at program start. Declare sentinels with `Define`, which captures no stack, and return them through `Wrap`, which captures the stack where they are returned:
+
+```go
+var ErrTitleRequired = jerrors.Define(CodeTitleRequired, "title is required")
+
+func validate(title string) error {
+	if title == "" {
+		return jerrors.Wrap(ErrTitleRequired) // the stack trace starts here
+	}
+	return nil
+}
+
+stderrors.Is(validate(""), ErrTitleRequired) // true
+jerrors.CodeOf(validate(""))                 // CodeTitleRequired
+```
+
+`Wrap` returns any other top-level `*jerrors.Error` unchanged, so wrapping twice does not add a second stack trace. Stack traces record frames the Go compiler did not inline, so a very small function may not appear as its own frame.
+
 ## Extract Codes
 
 Use `CodeOf` to read the first non-nil code from an error chain without a type assertion. It looks behind other wrappers such as `fmt.Errorf` and skips errors whose code is nil:

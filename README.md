@@ -22,6 +22,8 @@ The error string includes the code, code message, and original error message:
 [a001](Validation error.): invalid field "email"
 ```
 
+Text that repeats the code message is printed once: `NewC(codes.New("PLN-111", "task not found"), "task not found")` reads `[PLN-111](task not found)`.
+
 ## Wrap Errors
 
 ```go
@@ -119,6 +121,24 @@ err := jerrors.NewC(PaymentDeclined, "processor rejected payment")
 ```
 
 The built-in codes are package variables because Go cannot define const struct values. Treat them as read-only values.
+
+## Code Uniqueness
+
+Two failures that share a code string cannot be told apart by clients. Check your own codes in a test (here `CodeTitleRequired` and the others are codes your package declares with `codes.New`):
+
+```go
+func TestCodesAreUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for _, code := range []codes.Coder{CodeTitleRequired, CodeTaskNotFound, CodeProjectNotFound} {
+		if seen[code.Str()] {
+			t.Fatalf("code %s is declared twice", code.Str())
+		}
+		seen[code.Str()] = true
+	}
+}
+```
+
+`Example_codeUniqueness` in `example_uniqueness_test.go` shows the same check as a function that returns every duplicated code string.
 
 ## Kinds
 

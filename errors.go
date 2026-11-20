@@ -81,33 +81,38 @@ func (err *Error) Unwrap() error {
 	return err.cause
 }
 
-// Error returns the text of this Error.
+// Error returns the text of this Error: the code and its message in brackets,
+// then the friendly message and the wrapped error's text. A friendly message
+// or wrapped text equal to the code's message is printed only once.
 func (err *Error) Error() string {
 	if err == nil {
 		return ""
 	}
 
-	var result string
+	var result, codeText string
 
 	// Include the custom error code if it exists
 	if err.Code != nil {
+		codeText = err.Code.Msg()
 		result += "[" + err.Code.Str() + "]"
-		if err.Code.Msg() != "" {
-			result += "(" + err.Code.Msg() + ")"
+		if codeText != "" {
+			result += "(" + codeText + ")"
 		}
 	}
 
-	// Include the custom message if it exists
-	if err.Message != "" {
+	// Domain errors often reuse the code's text as their message (ERR-05);
+	// printing it again adds noise to every log line.
+	if err.Message != "" && err.Message != codeText {
 		result += " " + err.Message
 	}
 
-	// Always include the original wrapped error message
 	if err.Wrapper != nil {
-		if result != "" {
-			result += ": "
+		if wrapped := err.Wrapper.Error(); codeText == "" || wrapped != codeText {
+			if result != "" {
+				result += ": "
+			}
+			result += wrapped
 		}
-		result += err.Wrapper.Error()
 	}
 
 	return result

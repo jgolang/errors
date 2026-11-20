@@ -421,7 +421,7 @@ func TestWrapOfDefinedSentinel(t *testing.T) {
 	})
 
 	t.Run("Error reads like NewC", func(t *testing.T) {
-		if got := err.Error(); got != "[PLN-001](title is required): title is required" {
+		if got := err.Error(); got != "[PLN-001](title is required)" {
 			t.Fatalf("Unexpected Error() text %q", got)
 		}
 	})
@@ -484,3 +484,32 @@ func (plainCoder) Msg() string { return "custom" }
 type kindedCoder struct{ plainCoder }
 
 func (kindedCoder) Kind() codes.Kind { return codes.KindConflict }
+
+func TestErrorPrintsCodeTextOnce(t *testing.T) {
+	notFound := codes.New("PLN-111", "task not found")
+
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"NewC with the code text", NewC(notFound, "task not found"), "[PLN-111](task not found)"},
+		{"NewC with other text", NewC(notFound, "task 42 is missing"), "[PLN-111](task not found): task 42 is missing"},
+		{"Define sentinel", Define(notFound, "task not found"), "[PLN-111](task not found)"},
+		{"traced Define sentinel", Wrap(Define(notFound, "task not found")), "[PLN-111](task not found)"},
+		{"WithC drops a message equal to the code text", WithC(stderrors.New("io failure"), notFound, "task not found"), "[PLN-111](task not found): io failure"},
+		{"WrapC drops a cause equal to the code text", WrapC(stderrors.New("task not found"), notFound), "[PLN-111](task not found)"},
+		{"text differing in case prints twice", NewC(notFound, "Task not found"), "[PLN-111](task not found): Task not found"},
+		{"code without message keeps the separator", NewC(codes.New("X", ""), ""), "[X]: "},
+		{"nil code keeps the message", WithC(stderrors.New("io failure"), nil, "loading board"), " loading board: io failure"},
+		{"With adds context", With(NewC(notFound, "task not found"), "loading board"), "[PLN-111](task not found) loading board: [PLN-111](task not found)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.err.Error(); got != tt.want {
+				t.Fatalf("Expected %q, got %q", tt.want, got)
+			}
+		})
+	}
+}

@@ -164,3 +164,7 @@ The exported `Wrapper` field, deprecated in v0.7.0, was removed in v0.8.0 togeth
 ```go
 slog.Error("operation failed", "error", err, "stack", err.(*jerrors.Error).StackTrace())
 ```
+
+## License
+
+Released under the [MIT License](LICENSE).

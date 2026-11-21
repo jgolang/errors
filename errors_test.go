@@ -466,6 +466,7 @@ func TestKindOf(t *testing.T) {
 	}{
 		{"coded error", NewC(validation, "bad"), codes.KindValidation},
 		{"behind fmt.Errorf", fmt.Errorf("x: %w", NewC(validation, "bad")), codes.KindValidation},
+		{"too large behind fmt.Errorf", fmt.Errorf("x: %w", NewC(codes.New("UPL-001", "file is too large").WithKind(codes.KindTooLarge), "bad")), codes.KindTooLarge},
 		{"code without kind", NewC(codes.New("x001", "m"), "bad"), ""},
 		{"outer code without kind wins", WrapC(NewC(validation, "bad"), codes.New("x001", "m")), ""},
 		{"custom Coder", NewC(plainCoder{}, "bad"), ""},

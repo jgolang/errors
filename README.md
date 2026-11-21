@@ -151,7 +151,7 @@ err := jerrors.NewC(TitleRequired, "title is empty")
 jerrors.KindOf(fmt.Errorf("saving: %w", err)) // codes.KindValidation
 ```
 
-Kinds: `KindValidation`, `KindUnauthorized`, `KindForbidden`, `KindNotFound`, `KindConflict`, `KindInfrastructure`. `KindOf` returns the kind of the code `CodeOf` returns, or an empty kind when that code declares none. A custom `Coder` declares a kind by implementing `codes.Kinded`.
+Kinds: `KindValidation`, `KindUnauthorized`, `KindForbidden`, `KindNotFound`, `KindConflict`, `KindInfrastructure`, `KindTooLarge` (a request or payload larger than allowed). `KindOf` returns the kind of the code `CodeOf` returns, or an empty kind when that code declares none. A custom `Coder` declares a kind by implementing `codes.Kinded`.
 
 Built-in codes carry kinds: `ValRequired`, `ValFormat` and `AppValidation` are validation; `AuthFailed`, `AuthTokenExpired` and `Unauthorized` are unauthorized; `AuthForbidden` is forbidden; the database, network, server, configuration and integration codes are infrastructure. `Unknown`, `Logic`, `Unhandled`, `Unexpected` and `AppProcessing` have no kind.
 

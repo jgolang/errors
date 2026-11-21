@@ -25,6 +25,17 @@ func TestWithKindSetsKindAndKeepsCode(t *testing.T) {
 	}
 }
 
+func TestKindTooLarge(t *testing.T) {
+	code := New("UPL-001", "file is too large").WithKind(KindTooLarge)
+
+	if got := code.Kind(); got != KindTooLarge {
+		t.Fatalf("Expected kind %q, got %q", KindTooLarge, got)
+	}
+	if got := string(KindTooLarge); got != "too_large" {
+		t.Fatalf("Expected kind string %q, got %q", "too_large", got)
+	}
+}
+
 func TestNewCodeHasNoKind(t *testing.T) {
 	if got := New("x001", "m").Kind(); got != "" {
 		t.Fatalf("Expected no kind, got %q", got)

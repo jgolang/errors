@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -382,7 +383,7 @@ func TestDefineHasNoStack(t *testing.T) {
 	if !ok {
 		t.Fatalf("Expected *Error, got %T", errDefinedTitleRequired)
 	}
-	if e.Wrapper != nil || len(e.StackTrace().Group()) != 0 {
+	if len(e.StackTrace().Group()) != 0 || e.StackTraceStr() != "\n\n" || e.Detail() != "" {
 		t.Fatal("Expected a sentinel without a stack trace")
 	}
 	if e.Code.Str() != "PLN-001" || e.Message != "title is required" {
@@ -395,10 +396,14 @@ func TestWrapOfDefinedSentinel(t *testing.T) {
 
 	t.Run("stack starts at the caller", func(t *testing.T) {
 		e, ok := err.(*Error)
-		if !ok || e.Wrapper == nil {
-			t.Fatalf("Expected a stacked *Error, got %T", err)
+		if !ok {
+			t.Fatalf("Expected *Error, got %T", err)
 		}
-		if top := e.Wrapper.StackFrames()[0].Name; top != "returnDefinedSentinel" {
+		frames := e.StackTrace().Group()
+		if len(frames) == 0 {
+			t.Fatal("Expected a stack trace")
+		}
+		if top := frames[0].Value.String(); !strings.HasSuffix(top, " (returnDefinedSentinel)") {
 			t.Fatalf("Expected top frame returnDefinedSentinel, got %q", top)
 		}
 	})
@@ -573,48 +578,122 @@ func TestStackTraceIsSafeForConcurrentReads(t *testing.T) {
 	wg.Wait()
 }
 
-func TestStackTraceOutputMatchesGoErrorsFrames(t *testing.T) {
+// newCAtKnownLine is not inlined so it appears as its own stack frame; it
+// returns the file and line where NewC is called.
+//
+//go:noinline
+func newCAtKnownLine() (err *Error, file string, line int) {
+	_, file, line, _ = runtime.Caller(0)
+	err = NewC(codes.AppValidation, "invalid value").(*Error)
+	return err, file, line + 1
+}
+
+// withAtKnownLine is not inlined so it appears as its own stack frame; it
+// returns the file and line where With is called.
+//
+//go:noinline
+func withAtKnownLine() (err *Error, file string, line int) {
+	_, file, line, _ = runtime.Caller(0)
+	err = With(stderrors.New("root cause"), "friendly message").(*Error)
+	return err, file, line + 1
+}
+
+func TestStackTraceTopFrameIsTheCaller(t *testing.T) {
 	tests := []struct {
-		name string
-		err  *Error
+		name  string
+		build func() (*Error, string, int)
+		want  string
 	}{
-		{name: "without message", err: New("root cause").(*Error)},
-		{name: "with message", err: With(stderrors.New("root cause"), "friendly message").(*Error)},
+		{name: "NewC", build: newCAtKnownLine, want: "newCAtKnownLine"},
+		{name: "With", build: withAtKnownLine, want: "withAtKnownLine"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			gotStr := test.err.StackTraceStr()
-			gotGroup := test.err.StackTrace().Group()
+			err, file, line := test.build()
+			location := file + ":" + strconv.Itoa(line)
 
-			wantFrames, wantGroup := expectedFrameTexts(test.err)
-			if !strings.HasSuffix(gotStr, wantFrames) {
-				t.Fatalf("Expected StackTraceStr to end with\n%s\ngot\n%s", wantFrames, gotStr)
+			frames := err.StackTrace().Group()
+			if len(frames) == 0 {
+				t.Fatal("Expected a stack trace")
 			}
-			if len(gotGroup) != len(wantGroup) {
-				t.Fatalf("Expected %d frames, got %d", len(wantGroup), len(gotGroup))
+			wantAttr := slog.String("frame_0", location+" ("+test.want+")")
+			if !frames[0].Equal(wantAttr) {
+				t.Fatalf("Expected top frame %q, got %q", wantAttr, frames[0])
 			}
-			for i, attr := range gotGroup {
-				if attr.String() != wantGroup[i].String() {
-					t.Fatalf("Expected frame %d %q, got %q", i, wantGroup[i], attr)
-				}
+
+			wantStr := "\n\ngithub.com/jgolang/errors." + test.want + "\n·    " + location + "\n"
+			if got := err.StackTraceStr(); !strings.Contains(got, wantStr) {
+				t.Fatalf("Expected StackTraceStr to contain\n%s\ngot\n%s", wantStr, got)
 			}
 		})
 	}
 }
 
-// expectedFrameTexts formats go-errors' own StackFrames the way StackTraceStr
-// and StackTrace printed them before ERR-06.
-func expectedFrameTexts(err *Error) (string, []slog.Attr) {
-	var buffer strings.Builder
-	var attrs []slog.Attr
-	for level, frame := range err.Wrapper.StackFrames() {
-		buffer.WriteString(frame.Package + "." + frame.Name + "\n")
-		buffer.WriteString("·    " + frame.File + ":" + strconv.Itoa(frame.LineNumber) + "\n")
-		fmtFrame := frame.File + ":" + strconv.Itoa(frame.LineNumber) + " (" + frame.Name + ")"
-		attrs = append(attrs, slog.String("frame_"+strconv.Itoa(level), fmtFrame))
+// newInlinable is small enough for the compiler to inline into its caller.
+func newInlinable() error {
+	return New("inlined")
+}
+
+// callNewInlinable is not inlined; it returns the line where it calls
+// newInlinable.
+//
+//go:noinline
+func callNewInlinable() (err *Error, line int) {
+	_, _, line, _ = runtime.Caller(0)
+	err = newInlinable().(*Error)
+	return err, line + 1
+}
+
+func TestStackTraceNamesInlinedCallers(t *testing.T) {
+	err, line := callNewInlinable()
+
+	frames := err.StackTrace().Group()
+	if len(frames) < 2 {
+		t.Fatalf("Expected at least 2 frames, got %d", len(frames))
 	}
-	return buffer.String(), attrs
+	if got := frames[0].Value.String(); !strings.HasSuffix(got, " (newInlinable)") {
+		t.Fatalf("Expected frame 0 newInlinable, got %q", got)
+	}
+	want := ":" + strconv.Itoa(line) + " (callNewInlinable)"
+	if got := frames[1].Value.String(); !strings.HasSuffix(got, want) {
+		t.Fatalf("Expected frame 1 to end with %q, got %q", want, got)
+	}
+}
+
+// newAtDepth is not inlined so each recursive call is its own stack frame.
+//
+//go:noinline
+func newAtDepth(depth int) error {
+	if depth == 0 {
+		return New("deep")
+	}
+	return newAtDepth(depth - 1)
+}
+
+func TestStackTraceKeepsAtMostFiftyFrames(t *testing.T) {
+	err := newAtDepth(60).(*Error)
+
+	if got := len(err.StackTrace().Group()); got != 50 {
+		t.Fatalf("Expected 50 frames, got %d", got)
+	}
+	if got := strings.Count(err.StackTraceStr(), "\n·    "); got != 50 {
+		t.Fatalf("Expected 50 frames in StackTraceStr, got %d", got)
+	}
+}
+
+func TestNilErrorHasNoStackOrText(t *testing.T) {
+	var err *Error
+
+	if got := len(err.StackTrace().Group()); got != 0 {
+		t.Fatalf("Expected an empty stack trace, got %d frames", got)
+	}
+	if got := err.StackTraceStr(); got != "\n\n" {
+		t.Fatalf("Expected empty stack trace string, got %q", got)
+	}
+	if got := err.Error(); got != "" {
+		t.Fatalf("Expected empty text, got %q", got)
+	}
 }
 
 func TestDetailReturnsWrappedCauseText(t *testing.T) {
@@ -652,5 +731,17 @@ func TestDetailOfNilErrorIsEmpty(t *testing.T) {
 
 	if got := err.Detail(); got != "" {
 		t.Fatalf("Expected empty detail, got %q", got)
+	}
+}
+
+// requireComparable fails to compile when T is not comparable.
+func requireComparable[T comparable]() {}
+
+func TestErrorIsComparable(t *testing.T) {
+	requireComparable[Error]()
+
+	err := NewC(codes.AppValidation, "invalid value").(*Error)
+	if *err != *err {
+		t.Fatal("Expected an Error value to equal itself")
 	}
 }

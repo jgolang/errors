@@ -2,24 +2,26 @@ package errors
 
 import (
 	"log/slog"
+	"runtime"
 	"strconv"
 	"strings"
 
-	"github.com/go-errors/errors"
 	"github.com/jgolang/errors/codes"
 )
 
 // Error wraps another error with a stack trace, optional friendly message, and optional code.
+// The constructors capture the stack trace of their caller with the runtime
+// package; read it with StackTrace or StackTraceStr.
 type Error struct {
-	// Wrapper holds the wrapped cause and the stack trace captured with it.
-	//
-	// Deprecated: use Detail for the wrapped cause's text and StackTrace or
-	// StackTraceStr for the stack trace. Wrapper exposes
-	// github.com/go-errors/errors and will be removed in v0.8.0.
-	Wrapper *errors.Error
 	Message string // A non-technical, user-friendly message describing the error.
 	cause   error
 	Code    codes.Coder // A custom error code to categorize or identify the error.
+
+	// wrapped is the error whose text Detail returns. It is set together with
+	// stack, so a nil wrapped means the error has no stack trace.
+	wrapped error
+	// stack holds the program counters captured by the constructor.
+	stack *callStack
 
 	// defined marks a sentinel built by Define, which Wrap traces at its call site.
 	defined bool
@@ -34,16 +36,16 @@ type Error struct {
 // Like the stack trace, it can contain implementation details; keep it in
 // internal logs and return PublicMessage to users.
 func (err *Error) Detail() string {
-	if err == nil || err.Wrapper == nil {
+	if !err.hasStack() {
 		return ""
 	}
 
-	return err.Wrapper.Error()
+	return err.wrapped.Error()
 }
 
 // StackTraceStr returns the stack trace captured when this Error was created.
 func (err *Error) StackTraceStr() string {
-	if err == nil || err.Wrapper == nil {
+	if !err.hasStack() {
 		return "\n\n"
 	}
 
@@ -64,14 +66,14 @@ func (err *Error) StackTraceStr() string {
 	}
 
 	for _, frame := range frames {
-		buffer.WriteString(frame.Package)
+		buffer.WriteString(frame.pkg)
 		buffer.WriteString(".")
-		buffer.WriteString(frame.Name)
+		buffer.WriteString(frame.name)
 		buffer.WriteString("\n")
 		buffer.WriteString("·    ")
-		buffer.WriteString(frame.File)
+		buffer.WriteString(frame.file)
 		buffer.WriteString(":")
-		buffer.WriteString(strconv.Itoa(frame.LineNumber))
+		buffer.WriteString(strconv.Itoa(frame.line))
 		buffer.WriteString("\n")
 	}
 
@@ -80,30 +82,62 @@ func (err *Error) StackTraceStr() string {
 
 // StackTrace returns the stack trace as a slog group value.
 func (err *Error) StackTrace() slog.Value {
-	if err == nil || err.Wrapper == nil {
+	if !err.hasStack() {
 		return slog.GroupValue()
 	}
 
 	frames := err.stackFrames()
 	var as []slog.Attr
 	for level, frame := range frames {
-		fmtFrame := frame.File + ":" + strconv.Itoa(frame.LineNumber) + " (" + frame.Name + ")"
+		fmtFrame := frame.file + ":" + strconv.Itoa(frame.line) + " (" + frame.name + ")"
 		as = append(as, slog.String("frame_"+strconv.Itoa(level), fmtFrame))
 	}
 	return slog.GroupValue(as...)
 }
 
-// stackFrames resolves the captured program counters into frames on every call.
-// go-errors' StackFrames caches them on the shared Wrapper without
-// synchronization, so reading it from several goroutines is a data race.
-// NewStackFrame keeps the frame text identical to StackFrames.
-func (err *Error) stackFrames() []errors.StackFrame {
-	callers := err.Wrapper.Callers()
-	frames := make([]errors.StackFrame, len(callers))
-	for i, pc := range callers {
-		frames[i] = errors.NewStackFrame(pc)
+// hasStack reports whether err was built by a constructor that captured a
+// stack trace; Define sentinels and hand-built values have none.
+func (err *Error) hasStack() bool {
+	return err != nil && err.wrapped != nil
+}
+
+// stackFrame is one resolved frame of a captured stack trace.
+type stackFrame struct {
+	pkg  string
+	name string
+	file string
+	line int
+}
+
+// stackFrames resolves the captured program counters into frames on every
+// call. Nothing is cached on the shared *Error, so concurrent reads are safe.
+func (err *Error) stackFrames() []stackFrame {
+	pcs := err.stack.pcs[:err.stack.depth]
+	frames := make([]stackFrame, 0, len(pcs))
+	callersFrames := runtime.CallersFrames(pcs)
+	for more := len(pcs) > 0; more; {
+		var frame runtime.Frame
+		frame, more = callersFrames.Next()
+		pkg, name := splitFunctionName(frame.Function)
+		frames = append(frames, stackFrame{pkg: pkg, name: name, file: frame.File, line: frame.Line})
 	}
 	return frames
+}
+
+// splitFunctionName splits a fully qualified function name into its package
+// path and its name, as go-errors did before v0.8.0 so the printed frames keep
+// their format: the package ends at the first "." after the last "/".
+func splitFunctionName(function string) (pkg, name string) {
+	name = function
+	if lastSlash := strings.LastIndex(name, "/"); lastSlash >= 0 {
+		pkg = name[:lastSlash+1]
+		name = name[lastSlash+1:]
+	}
+	if period := strings.Index(name, "."); period >= 0 {
+		pkg += name[:period]
+		name = name[period+1:]
+	}
+	return pkg, strings.ReplaceAll(name, "·", ".")
 }
 
 // Unwrap returns the error that caused this Error.
@@ -138,7 +172,7 @@ func (err *Error) Error() string {
 		result += " " + err.Message
 	}
 
-	if err.Wrapper != nil {
+	if err.hasStack() {
 		wrapped, onlyPrefix := err.wrappedText()
 		if !onlyPrefix && (codeText == "" || wrapped != codeText) {
 			if result != "" {
@@ -168,7 +202,7 @@ func (err *Error) prefix() string {
 // text, and onlyPrefix reports that nothing else was left to print.
 func (err *Error) wrappedText() (text string, onlyPrefix bool) {
 	full := err.Detail()
-	inner, ok := err.Wrapper.Err.(*Error)
+	inner, ok := err.wrapped.(*Error)
 	if !ok || inner == nil || !sameCode(inner.Code, err.Code) {
 		return full, false
 	}

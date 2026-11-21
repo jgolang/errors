@@ -3,10 +3,31 @@ package errors
 import (
 	stderrors "errors"
 	"fmt"
+	"runtime"
 
-	"github.com/go-errors/errors"
 	"github.com/jgolang/errors/codes"
 )
+
+// maxStackDepth is the most program counters a stack trace keeps, the same
+// limit go-errors applied before v0.8.0.
+const maxStackDepth = 50
+
+// callStack holds captured program counters. It is kept behind a pointer, not
+// as a slice field, so that Error stays comparable with ==.
+type callStack struct {
+	pcs   [maxStackDepth]uintptr
+	depth int
+}
+
+// captureStack returns the program counters of the current goroutine's stack.
+// skip is the number of frames to leave out, starting with the function that
+// calls captureStack: 1 makes the stack start at the caller of a constructor.
+func captureStack(skip int) *callStack {
+	stack := &callStack{}
+	// 2 leaves out runtime.Callers and captureStack.
+	stack.depth = runtime.Callers(2+skip, stack.pcs[:])
+	return stack
+}
 
 // With wraps err with a formatted friendly message and captures a new stack trace.
 // It keeps the code found anywhere in err's chain, or uses codes.Unknown.
@@ -16,7 +37,8 @@ func With(err error, message string, args ...interface{}) error {
 	}
 
 	return &Error{
-		Wrapper: errors.Wrap(err, 1),
+		wrapped: err,
+		stack:   captureStack(1),
 		Message: fmt.Sprintf(message, args...),
 		cause:   err,
 		Code:    codeOrUnknown(err),
@@ -30,7 +52,8 @@ func WithC(err error, code codes.Coder, message string, args ...interface{}) err
 	}
 
 	return &Error{
-		Wrapper: errors.Wrap(err, 1),
+		wrapped: err,
+		stack:   captureStack(1),
 		Message: fmt.Sprintf(message, args...),
 		cause:   err,
 		Code:    code,
@@ -55,7 +78,8 @@ func Wrap(err error) error {
 	}
 
 	return &Error{
-		Wrapper: errors.Wrap(err, 1),
+		wrapped: err,
+		stack:   captureStack(1),
 		cause:   err,
 		Code:    codeOrUnknown(err),
 	}
@@ -73,7 +97,8 @@ func Define(code codes.Coder, message string) error {
 // to the sentinel, so errors.Is, errors.As and CodeOf still match it.
 func traceSentinel(sentinel *Error) error {
 	return &Error{
-		Wrapper: errors.Wrap(stderrors.New(sentinel.Message), 2),
+		wrapped: stderrors.New(sentinel.Message),
+		stack:   captureStack(2),
 		cause:   sentinel,
 		Code:    sentinel.Code,
 	}
@@ -92,7 +117,8 @@ func WrapC(err error, code codes.Coder) error {
 		}
 
 		return &Error{
-			Wrapper: errors.Wrap(cause, 1),
+			wrapped: cause,
+			stack:   captureStack(1),
 			Message: err.Message,
 			cause:   err,
 			Code:    code,
@@ -100,7 +126,8 @@ func WrapC(err error, code codes.Coder) error {
 	}
 
 	return &Error{
-		Wrapper: errors.Wrap(err, 1),
+		wrapped: err,
+		stack:   captureStack(1),
 		cause:   err,
 		Code:    code,
 	}
@@ -109,7 +136,8 @@ func WrapC(err error, code codes.Coder) error {
 // New creates an error with a formatted message, default code, and stack trace.
 func New(format string, args ...interface{}) error {
 	return &Error{
-		Wrapper: errors.Wrap(fmt.Errorf(format, args...), 1),
+		wrapped: fmt.Errorf(format, args...),
+		stack:   captureStack(1),
 		Code:    codes.Unknown,
 	}
 }
@@ -117,7 +145,8 @@ func New(format string, args ...interface{}) error {
 // NewC creates an error with a code, formatted message, and stack trace.
 func NewC(code codes.Coder, format string, args ...interface{}) error {
 	return &Error{
-		Wrapper: errors.Wrap(fmt.Errorf(format, args...), 1),
+		wrapped: fmt.Errorf(format, args...),
+		stack:   captureStack(1),
 		Code:    code,
 	}
 }

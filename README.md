@@ -85,7 +85,7 @@ stderrors.Is(validate(""), ErrTitleRequired) // true
 jerrors.CodeOf(validate(""))                 // CodeTitleRequired
 ```
 
-`Wrap` returns any other top-level `*jerrors.Error` unchanged, so wrapping twice does not add a second stack trace. Stack traces record frames the Go compiler did not inline, so a very small function may not appear as its own frame.
+`Wrap` returns any other top-level `*jerrors.Error` unchanged, so wrapping twice does not add a second stack trace. Stack traces are captured with the standard `runtime` package and keep at most 50 frames; a function the Go compiler inlined still appears as its own frame, with its real name and line.
 
 ## Extract Codes
 
@@ -159,7 +159,7 @@ Built-in codes carry kinds: `ValRequired`, `ValFormat` and `AppValidation` are v
 
 `StackTraceStr` returns a text stack trace. `StackTrace` returns a `slog.Value` group that can be attached to structured logs. `Detail` returns the text of the wrapped cause without the error's own code and friendly message (a wrapped `*Error` keeps its own `[code](message)` prefix). Stack traces and details can contain source paths, function names and other implementation details, so keep them in internal logs only.
 
-The exported `Wrapper` field is deprecated since v0.7.0 and will be removed in v0.8.0: use `Detail` for the cause's text and `StackTrace` or `StackTraceStr` for the stack.
+The exported `Wrapper` field, deprecated in v0.7.0, was removed in v0.8.0 together with the `github.com/go-errors/errors` dependency: use `Detail` for the cause's text and `StackTrace` or `StackTraceStr` for the stack. Wrapping a `*goerrors.Error` now captures a fresh stack at the call site instead of reusing its stack. `jgolang/log` v1.7.3 or later is required with v0.8.0.
 
 ```go
 slog.Error("operation failed", "error", err, "stack", err.(*jerrors.Error).StackTrace())

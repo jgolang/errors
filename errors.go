@@ -26,7 +26,7 @@ func (err *Error) StackTraceStr() string {
 		return "\n\n"
 	}
 
-	frames := err.Wrapper.StackFrames()
+	frames := err.stackFrames()
 	var buffer strings.Builder
 
 	if err.Message != "" {
@@ -63,13 +63,26 @@ func (err *Error) StackTrace() slog.Value {
 		return slog.GroupValue()
 	}
 
-	frames := err.Wrapper.StackFrames()
+	frames := err.stackFrames()
 	var as []slog.Attr
 	for level, frame := range frames {
 		fmtFrame := frame.File + ":" + strconv.Itoa(frame.LineNumber) + " (" + frame.Name + ")"
 		as = append(as, slog.String("frame_"+strconv.Itoa(level), fmtFrame))
 	}
 	return slog.GroupValue(as...)
+}
+
+// stackFrames resolves the captured program counters into frames on every call.
+// go-errors' StackFrames caches them on the shared Wrapper without
+// synchronization, so reading it from several goroutines is a data race.
+// NewStackFrame keeps the frame text identical to StackFrames.
+func (err *Error) stackFrames() []errors.StackFrame {
+	callers := err.Wrapper.Callers()
+	frames := make([]errors.StackFrame, len(callers))
+	for i, pc := range callers {
+		frames[i] = errors.NewStackFrame(pc)
+	}
+	return frames
 }
 
 // Unwrap returns the error that caused this Error.

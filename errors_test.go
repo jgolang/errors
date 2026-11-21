@@ -4,7 +4,9 @@ import (
 	stderrors "errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jgolang/errors/codes"
@@ -551,4 +553,66 @@ func TestErrorPrintsChainCodePrefixOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStackTraceIsSafeForConcurrentReads(t *testing.T) {
+	err := NewC(codes.AppValidation, "invalid value").(*Error)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_ = err.StackTrace()
+			_ = err.StackTraceStr()
+		}()
+	}
+	close(start)
+	wg.Wait()
+}
+
+func TestStackTraceOutputMatchesGoErrorsFrames(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *Error
+	}{
+		{name: "without message", err: New("root cause").(*Error)},
+		{name: "with message", err: With(stderrors.New("root cause"), "friendly message").(*Error)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotStr := test.err.StackTraceStr()
+			gotGroup := test.err.StackTrace().Group()
+
+			wantFrames, wantGroup := expectedFrameTexts(test.err)
+			if !strings.HasSuffix(gotStr, wantFrames) {
+				t.Fatalf("Expected StackTraceStr to end with\n%s\ngot\n%s", wantFrames, gotStr)
+			}
+			if len(gotGroup) != len(wantGroup) {
+				t.Fatalf("Expected %d frames, got %d", len(wantGroup), len(gotGroup))
+			}
+			for i, attr := range gotGroup {
+				if attr.String() != wantGroup[i].String() {
+					t.Fatalf("Expected frame %d %q, got %q", i, wantGroup[i], attr)
+				}
+			}
+		})
+	}
+}
+
+// expectedFrameTexts formats go-errors' own StackFrames the way StackTraceStr
+// and StackTrace printed them before ERR-06.
+func expectedFrameTexts(err *Error) (string, []slog.Attr) {
+	var buffer strings.Builder
+	var attrs []slog.Attr
+	for level, frame := range err.Wrapper.StackFrames() {
+		buffer.WriteString(frame.Package + "." + frame.Name + "\n")
+		buffer.WriteString("·    " + frame.File + ":" + strconv.Itoa(frame.LineNumber) + "\n")
+		fmtFrame := frame.File + ":" + strconv.Itoa(frame.LineNumber) + " (" + frame.Name + ")"
+		attrs = append(attrs, slog.String("frame_"+strconv.Itoa(level), fmtFrame))
+	}
+	return buffer.String(), attrs
 }

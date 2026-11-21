@@ -37,3 +37,14 @@ func ExampleKindOf() {
 	// validation
 	// true
 }
+
+func ExampleError_Detail() {
+	err := jerrors.With(stderrors.New("connection refused"), "loading board")
+
+	var coded *jerrors.Error
+	if stderrors.As(err, &coded) {
+		fmt.Println(coded.Detail())
+	}
+	// Output:
+	// connection refused
+}

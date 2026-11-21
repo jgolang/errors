@@ -616,3 +616,41 @@ func expectedFrameTexts(err *Error) (string, []slog.Attr) {
 	}
 	return buffer.String(), attrs
 }
+
+func TestDetailReturnsWrappedCauseText(t *testing.T) {
+	inner := NewC(codes.AppValidation, "title is empty")
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "New", err: New("disk %s", "full"), want: "disk full"},
+		{name: "NewC", err: NewC(codes.AppValidation, "title is empty"), want: "title is empty"},
+		{name: "Wrap of a plain error", err: Wrap(stderrors.New("timeout")), want: "timeout"},
+		{name: "With", err: With(stderrors.New("timeout"), "loading board"), want: "timeout"},
+		{name: "WithC", err: WithC(stderrors.New("timeout"), codes.AppProcessing, "loading board"), want: "timeout"},
+		{name: "WrapC of an *Error without cause", err: WrapC(inner, codes.AppProcessing), want: inner.Error()},
+		{name: "WrapC of an *Error wraps its cause", err: WrapC(With(stderrors.New("timeout"), "loading"), codes.AppProcessing), want: "timeout"},
+		{name: "With of an *Error", err: With(inner, "saving"), want: inner.Error()},
+		{name: "Wrap of a Define sentinel", err: Wrap(errDefinedTitleRequired), want: "title is required"},
+		{name: "Define sentinel has no detail", err: errDefinedTitleRequired, want: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.err.(*Error).Detail()
+
+			if got != test.want {
+				t.Fatalf("Expected %q, got %q", test.want, got)
+			}
+		})
+	}
+}
+
+func TestDetailOfNilErrorIsEmpty(t *testing.T) {
+	var err *Error
+
+	if got := err.Detail(); got != "" {
+		t.Fatalf("Expected empty detail, got %q", got)
+	}
+}

@@ -157,7 +157,9 @@ Built-in codes carry kinds: `ValRequired`, `ValFormat` and `AppValidation` are v
 
 ## Stack Traces
 
-`StackTraceStr` returns a text stack trace. `StackTrace` returns a `slog.Value` group that can be attached to structured logs. Stack traces can contain source paths and function names, so keep them in internal logs only.
+`StackTraceStr` returns a text stack trace. `StackTrace` returns a `slog.Value` group that can be attached to structured logs. `Detail` returns the text of the wrapped cause without the error's own code and friendly message (a wrapped `*Error` keeps its own `[code](message)` prefix). Stack traces and details can contain source paths, function names and other implementation details, so keep them in internal logs only.
+
+The exported `Wrapper` field is deprecated since v0.7.0 and will be removed in v0.8.0: use `Detail` for the cause's text and `StackTrace` or `StackTraceStr` for the stack.
 
 ```go
 slog.Error("operation failed", "error", err, "stack", err.(*jerrors.Error).StackTrace())

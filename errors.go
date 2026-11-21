@@ -11,6 +11,11 @@ import (
 
 // Error wraps another error with a stack trace, optional friendly message, and optional code.
 type Error struct {
+	// Wrapper holds the wrapped cause and the stack trace captured with it.
+	//
+	// Deprecated: use Detail for the wrapped cause's text and StackTrace or
+	// StackTraceStr for the stack trace. Wrapper exposes
+	// github.com/go-errors/errors and will be removed in v0.8.0.
 	Wrapper *errors.Error
 	Message string // A non-technical, user-friendly message describing the error.
 	cause   error
@@ -18,6 +23,22 @@ type Error struct {
 
 	// defined marks a sentinel built by Define, which Wrap traces at its call site.
 	defined bool
+}
+
+// Detail returns the full text of the error this Error wraps, without this
+// Error's own code and friendly message: the formatted text for New and NewC,
+// the sentinel's message for Wrap of a Define sentinel, and otherwise the text
+// of the wrapped error, which includes its own code prefix and message when it
+// is an *Error. It returns "" for a nil receiver and for an error without a
+// stack trace, such as a Define sentinel.
+// Like the stack trace, it can contain implementation details; keep it in
+// internal logs and return PublicMessage to users.
+func (err *Error) Detail() string {
+	if err == nil || err.Wrapper == nil {
+		return ""
+	}
+
+	return err.Wrapper.Error()
 }
 
 // StackTraceStr returns the stack trace captured when this Error was created.
@@ -34,11 +55,11 @@ func (err *Error) StackTraceStr() string {
 		buffer.WriteString(err.Message)
 		buffer.WriteString("\n\n")
 		buffer.WriteString("·    Cause: ")
-		buffer.WriteString(err.Wrapper.Error())
+		buffer.WriteString(err.Detail())
 		buffer.WriteString("\n\n")
 	} else {
 		buffer.WriteString("\n\n")
-		buffer.WriteString(err.Wrapper.Error())
+		buffer.WriteString(err.Detail())
 		buffer.WriteString("\n\n")
 	}
 
@@ -146,7 +167,7 @@ func (err *Error) prefix() string {
 // the same code, its own prefix and the separator after it are cut from its
 // text, and onlyPrefix reports that nothing else was left to print.
 func (err *Error) wrappedText() (text string, onlyPrefix bool) {
-	full := err.Wrapper.Error()
+	full := err.Detail()
 	inner, ok := err.Wrapper.Err.(*Error)
 	if !ok || inner == nil || !sameCode(inner.Code, err.Code) {
 		return full, false

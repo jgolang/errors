@@ -12,6 +12,10 @@ const (
 	KindNotFound       Kind = "not_found"
 	KindConflict       Kind = "conflict"
 	KindInfrastructure Kind = "infrastructure"
+
+	// KindTooLarge reports a request or payload larger than allowed, such as
+	// an upload over a size limit.
+	KindTooLarge Kind = "too_large"
 )
 
 // Kinded is implemented by a Coder that declares a Kind. It is optional, so
